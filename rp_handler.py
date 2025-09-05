@@ -144,7 +144,8 @@ def handler(event):
 
     size         = inp.get("size", DEFAULT_SIZE)
     mode         = inp.get("mode", DEFAULT_MODE)
-    sample_steps = int(inp.get("sample_steps", SAMPLED_STEPS)) if "sample_steps" in inp else SAMPLE_STEPS  # type: ignore
+    # sample_steps = int(inp.get("sample_steps", SAMPLED_STEPS)) if "sample_steps" in inp else SAMPLE_STEPS  # type: ignore
+    sample_steps = int(inp.get("sample_steps", SAMPLE_STEPS))
     motion_frame = int(inp.get("motion_frame", MOTION_FRAME))
     extra_args   = [str(x) for x in inp.get("extra_args", [])]
 
