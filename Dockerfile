@@ -20,7 +20,7 @@ RUN pip install --upgrade pip && \
         flash_attn==2.7.4.post1 huggingface_hub hf_transfer && \
     pip install --no-cache-dir -r requirements.txt
 
-# Speed up HF downloads (optional, harmless if hf_transfer isn't used)
+# Speed up HF downloads (optional; harmless if hf_transfer isn't used)
 ENV HF_HUB_ENABLE_HF_TRANSFER=1
 
 # (Optional) create common dirs; in Serverless your volume mounts at /runpod-volume
