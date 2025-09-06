@@ -31,6 +31,12 @@ MOTION_FRAME  = int(os.getenv("MOTION_FRAME", "9"))
 
 HF_TOKEN      = os.getenv("HF_TOKEN")  # optional; required if repos are gated
 
+# put HF caches on the mounted volume
+os.environ.setdefault("HF_HOME", "/runpod-volume/.hf")
+os.environ.setdefault("HUGGINGFACE_HUB_CACHE", "/runpod-volume/.hf/cache")
+os.environ.setdefault("TRANSFORMERS_CACHE", "/runpod-volume/.hf/cache")
+Path("/runpod-volume/.hf/cache").mkdir(parents=True, exist_ok=True)
+
 # Logging level (INFO by default)
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 
