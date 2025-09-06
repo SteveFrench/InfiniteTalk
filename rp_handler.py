@@ -11,6 +11,7 @@ import runpod
 from runpod.serverless.utils import rp_upload
 from huggingface_hub import snapshot_download, hf_hub_download
 
+
 # =========================
 # Config (Serverless-first)
 # =========================
@@ -115,16 +116,42 @@ def ensure_weights_and_get_it_path() -> str:
         except Exception as e:
             logging.warning("[weights] optional wav2vec2 model.safetensors fetch failed: %s", e)
 
-    # 3) InfiniteTalk repo (contains single/multi/quant variants in different structures)
+    # 3) InfiniteTalk weights (download likely filenames explicitly, then snapshot)
     it_root = Path(WEIGHTS_DIR) / "InfiniteTalk"
-    if not it_root.exists():
-        logging.info("[weights] downloading MeiGen-AI/InfiniteTalk -> %s", it_root)
-        snapshot_download(
-            repo_id="MeiGen-AI/InfiniteTalk",
-            local_dir=str(it_root),
-            local_dir_use_symlinks=False,
-            token=HF_TOKEN
-        )
+    it_root.mkdir(parents=True, exist_ok=True)
+
+    # Try a repo snapshot first (harmless if already populated)
+    try:
+        if not list(it_root.glob("**/*")):
+            logging.info("[weights] downloading MeiGen-AI/InfiniteTalk -> %s", it_root)
+            snapshot_download(
+                repo_id="MeiGen-AI/InfiniteTalk",
+                local_dir=str(it_root),
+                local_dir_use_symlinks=False,
+                token=HF_TOKEN
+            )
+    except Exception as e:
+        logging.warning("[weights] snapshot_download MeiGen-AI/InfiniteTalk failed: %s", e)
+
+    # Then try targeted file downloads for common names/paths
+    candidate_names = [
+        "comfyui/infinitetalk_single.safetensors",
+        "infinitetalk_single.safetensors",
+        "single/infinitetalk.safetensors",
+        "Wan2_1-InfiniTetalk-Single_fp16.safetensors",
+    ]
+    for name in candidate_names:
+        try:
+            hf_hub_download(
+                repo_id="MeiGen-AI/InfiniteTalk",
+                filename=name,
+                local_dir=str(it_root),
+                local_dir_use_symlinks=False,
+                token=HF_TOKEN
+            )
+            logging.info("[weights] downloaded explicit file: %s", name)
+        except Exception:
+            pass  # try the next candidate
 
     # If INF_TALK_WEIGHTS explicitly points to a file and it exists, use it.
     explicit = Path(IT_WEIGHTS)
@@ -132,33 +159,19 @@ def ensure_weights_and_get_it_path() -> str:
         logging.info("[weights] using explicit InfiniteTalk weights: %s", explicit)
         return str(explicit)
 
-    # Otherwise, search heuristically.
-    candidates: List[Path] = []
-    patterns: Iterable[Iterable[Path]] = [
-        it_root.glob("single/**/infinitetalk*.safetensors"),
-        it_root.glob("single/**/*.safetensors"),
-        it_root.glob("**/infinitetalk*.safetensors"),
-        it_root.glob("**/*.safetensors"),
-    ]
-    seen = set()
-    for gen in patterns:
-        for p in gen:
-            if p.is_file():
-                rp = p.resolve()
-                if rp not in seen:
-                    candidates.append(rp)
-                    seen.add(rp)
+    # Otherwise, search recursively for any *.safetensors under InfiniteTalk
+    candidates = sorted([p.resolve() for p in it_root.rglob("*.safetensors") if p.is_file()])
+
     if candidates:
-        # Prefer files in 'single', then prefer non-quantized, then shortest path.
+        # Prefer 'single' > non-quant > shortest path
         def score(path: Path) -> tuple[int, int]:
             s = 0
-            plower = str(path).lower()
-            if "single" in plower:
+            pl = str(path).lower()
+            if "single" in pl:
                 s -= 3
-            if "quant" in plower or "fp8" in plower or "int" in plower:
+            if "quant" in pl or "fp8" in pl or "int8" in pl:
                 s += 1
             return (s, len(str(path)))
-
         best = sorted(candidates, key=score)[0]
         logging.info("[weights] resolved InfiniteTalk weights to: %s", best)
         return str(best)
